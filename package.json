@@ -1,0 +1,6 @@
+{
+  "name": "finance-manager",
+  "private": true,
+  "packageManager": "pnpm@11.21.0",
+  "scripts": {}
+}
