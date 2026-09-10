@@ -3,17 +3,14 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-
-import { ConfigService } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
 import type { Response } from 'express';
 import * as bcrypt from 'bcryptjs';
-
-import { Prisma } from 'generated/prisma/client';
-
 import { PrismaService } from '../prisma/prisma.service';
-import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { Prisma } from 'generated/prisma/client';
+import { LoginDto } from './dto/login.dto';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 
 interface RefreshTokenPayload {
   sub: string;
