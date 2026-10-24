@@ -1,29 +1,33 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
+import cookieParser from 'cookie-parser';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
+import { PrismaService } from './../src/prisma/prisma.service';
 
-describe('AppController (e2e)', () => {
+describe('AuthController (e2e)', () => {
   let app: INestApplication<App>;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(PrismaService)
+      .useValue({})
+      .compile();
 
     app = moduleFixture.createNestApplication();
+    app.use(cookieParser());
+
     await app.init();
   });
 
-  it('/ (GET)', () => {
-    return request(app.getHttpServer())
-      .get('/')
-      .expect(200)
-      .expect('Hello World!');
+  afterAll(async () => {
+    await app.close();
   });
 
-  afterEach(async () => {
-    await app.close();
+  it('POST /auth/refresh — returns 401 when refresh cookie is missing', async () => {
+    await request(app.getHttpServer()).post('/auth/refresh').expect(401);
   });
 });
