@@ -159,6 +159,60 @@ export class AuthService {
     };
   }
 
+  async logout(refreshToken: string | undefined, response: Response) {
+    if (refreshToken) {
+      let payload: RefreshTokenPayload | null = null;
+
+      try {
+        payload = this.verifyRefreshToken(refreshToken);
+      } catch (error) {
+        if (!(error instanceof UnauthorizedException)) {
+          throw error;
+        }
+      }
+
+      if (payload) {
+        const sessions = await this.prisma.refreshSession.findMany({
+          where: {
+            userId: payload.sub,
+            revokedAt: null,
+            expiresAt: {
+              gt: new Date(),
+            },
+          },
+        });
+
+        for (const session of sessions) {
+          const isValidToken = await bcrypt.compare(
+            refreshToken,
+            session.tokenHash,
+          );
+
+          if (isValidToken) {
+            await this.prisma.refreshSession.updateMany({
+              where: {
+                id: session.id,
+                revokedAt: null,
+              },
+              data: {
+                revokedAt: new Date(),
+              },
+            });
+
+            break;
+          }
+        }
+      }
+    }
+
+    response.clearCookie('access_token', { path: '/' });
+    response.clearCookie('refresh_token', { path: '/' });
+
+    return {
+      message: 'Logged out successfully',
+    };
+  }
+
   private generateAccessToken(userId: string) {
     return this.jwtService.signAsync(
       {
@@ -184,15 +238,15 @@ export class AuthService {
   }
 
   private verifyRefreshToken(refreshToken: string): RefreshTokenPayload {
+    const secret = this.configService.getOrThrow<string>('JWT_REFRESH_SECRET');
+
     try {
       const payload = this.jwtService.verify<RefreshTokenPayload>(
         refreshToken,
-        {
-          secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
-        },
+        { secret },
       );
 
-      if (!payload.sub) {
+      if (typeof payload.sub !== 'string' || !payload.sub) {
         throw new UnauthorizedException('Invalid refresh token');
       }
 
@@ -228,6 +282,7 @@ export class AuthService {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: 15 * 60 * 1000,
+      path: '/',
     });
 
     response.cookie('refresh_token', refreshToken, {
@@ -235,6 +290,7 @@ export class AuthService {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/',
     });
   }
 }
