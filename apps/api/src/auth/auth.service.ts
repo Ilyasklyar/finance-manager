@@ -160,57 +160,59 @@ export class AuthService {
   }
 
   async logout(refreshToken: string | undefined, response: Response) {
-    if (refreshToken) {
-      let payload: RefreshTokenPayload | null = null;
+    try {
+      if (refreshToken) {
+        let payload: RefreshTokenPayload | null = null;
 
-      try {
-        payload = this.verifyRefreshToken(refreshToken);
-      } catch (error) {
-        if (!(error instanceof UnauthorizedException)) {
-          throw error;
+        try {
+          payload = this.verifyRefreshToken(refreshToken);
+        } catch (error) {
+          if (!(error instanceof UnauthorizedException)) {
+            throw error;
+          }
         }
-      }
 
-      if (payload) {
-        const sessions = await this.prisma.refreshSession.findMany({
-          where: {
-            userId: payload.sub,
-            revokedAt: null,
-            expiresAt: {
-              gt: new Date(),
+        if (payload) {
+          const sessions = await this.prisma.refreshSession.findMany({
+            where: {
+              userId: payload.sub,
+              revokedAt: null,
+              expiresAt: {
+                gt: new Date(),
+              },
             },
-          },
-        });
+          });
 
-        for (const session of sessions) {
-          const isValidToken = await bcrypt.compare(
-            refreshToken,
-            session.tokenHash,
-          );
+          for (const session of sessions) {
+            const isValidToken = await bcrypt.compare(
+              refreshToken,
+              session.tokenHash,
+            );
 
-          if (isValidToken) {
-            await this.prisma.refreshSession.updateMany({
-              where: {
-                id: session.id,
-                revokedAt: null,
-              },
-              data: {
-                revokedAt: new Date(),
-              },
-            });
+            if (isValidToken) {
+              await this.prisma.refreshSession.updateMany({
+                where: {
+                  id: session.id,
+                  revokedAt: null,
+                },
+                data: {
+                  revokedAt: new Date(),
+                },
+              });
 
-            break;
+              break;
+            }
           }
         }
       }
+
+      return {
+        message: 'Logged out successfully',
+      };
+    } finally {
+      response.clearCookie('access_token', { path: '/' });
+      response.clearCookie('refresh_token', { path: '/' });
     }
-
-    response.clearCookie('access_token', { path: '/' });
-    response.clearCookie('refresh_token', { path: '/' });
-
-    return {
-      message: 'Logged out successfully',
-    };
   }
 
   private generateAccessToken(userId: string) {
